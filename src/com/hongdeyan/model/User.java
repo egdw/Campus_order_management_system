@@ -1,5 +1,6 @@
 package com.hongdeyan.model;
 
+import com.hongdeyan.annotation.DbRef;
 import com.hongdeyan.annotation.Document;
 import com.hongdeyan.annotation.Id;
 import com.hongdeyan.annotation.Param;
@@ -21,6 +22,6 @@ public class User {
     @Param
     private String password;
     //职务
-    @Param
+    @DbRef(param_name = "duty")
     private Duty duty;
 }

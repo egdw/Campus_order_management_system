@@ -1,5 +1,6 @@
 package com.hongdeyan.orm;
 
+import com.hongdeyan.annotation.DbRef;
 import com.hongdeyan.annotation.Id;
 import com.hongdeyan.annotation.Param;
 import com.hongdeyan.model.User;
@@ -70,7 +71,8 @@ public class OrmObject implements OrmInterface {
                     //获取当前属性的注解
                     Id id = declaredField.getAnnotation(Id.class);
                     Param param = declaredField.getAnnotation(Param.class);
-                    if (id != null || param != null) {
+                    DbRef dbRef = declaredField.getAnnotation(DbRef.class);
+                    if (id != null || param != null || dbRef != null) {
                         //说明是已经标记注解的属性.可以进行数据自动的导入.
                         String paramName = null;
                         if (id != null && !id.param_name().equals("")) {
@@ -110,6 +112,26 @@ public class OrmObject implements OrmInterface {
                         } else {
                             //说明是其他的object类
                             //需要再次进行查询操作.
+                            Class<?> fieldType = declaredField.getType();
+                            //判断当前的object是否是其他的关系
+                            com.hongdeyan.annotation.Document dbRef_document = fieldType.getAnnotation(com.hongdeyan.annotation.Document.class);
+                            if (dbRef != null && dbRef_document != null) {
+                                //如果是相关的依赖.则继续进行查询
+                                String dbRef_param_name = dbRef.param_name();
+                                if (dbRef_param_name.equals("")) {
+                                    paramName = dbRef_param_name;
+                                }
+                                //判断存放的objectId是否存在.
+                                ObjectId objectId = document.getObjectId(paramName);
+                                if (objectId == null) {
+                                    //说明不存在,为空
+                                    declaredField.set(newInstance, null);
+                                    continue;
+                                }
+                                //进行递归调用
+                                Object obj = getObj(objectId.toString(), fieldType);
+                                declaredField.set(newInstance, obj);
+                            }
                         }
                     }
 
@@ -129,7 +151,23 @@ public class OrmObject implements OrmInterface {
     }
 
     @Override
-    public int save(Object object) {
+    public Object save(Object object) {
+        ObjectId objectId = saveInner(object);
+        if (objectId != null) {
+            //说明插入成功
+            return getObj(objectId.toString(), object.getClass());
+        }
+        return null;
+    }
+
+
+    /**
+     * save的内函数
+     *
+     * @param object 传入需要保存在collection中的object类
+     * @return 返回存入的id
+     */
+    private ObjectId saveInner(Object object) {
         Class<?> aClass = object.getClass();
         com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
         if (annotation == null) {
@@ -154,19 +192,47 @@ public class OrmObject implements OrmInterface {
         for (int i = 0; i < fields.length; i++) {
             Field field = fields[i];
             field.setAccessible(true);
-//            Id id = field.getAnnotation(Id.class);
             Param param = field.getAnnotation(Param.class);
+            Id id = field.getAnnotation(Id.class);
             if (param != null) {
                 //说明添加了注解的
-                String param_name = null;
-                if (param != null && !param.param_name().equals("")) {
+                String param_name = field.getName();
+                if (!param.param_name().equals("")) {
                     param_name = param.param_name();
-                } else {
-                    //如果都没有写,默认使用原始的param属性
-                    param_name = field.getName();
                 }
                 try {
                     document.append(param_name, field.get(object));
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (id != null) {
+                String param_name = field.getName();
+                if (!id.param_name().equals("")) {
+                    param_name = id.param_name();
+                }
+                if (param_name.equals("id")) {
+                    param_name = "_id";
+                }
+                try {
+                    //这里的更新保存还存在问题..还需要后续修复...
+                    document.append(param_name, field.get(object));
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+            DbRef dbRef = field.getAnnotation(DbRef.class);
+            //判断是否存在外部引用
+            if (dbRef != null) {
+                String param_name = field.getName();
+                if (!dbRef.param_name().equals("")) {
+                    param_name = dbRef.param_name();
+                }
+                try {
+                    ObjectId inner = saveInner(field.get(object));
+                    if (inner != null) {
+                        document.append(param_name, inner);
+                    }
                 } catch (IllegalAccessException e) {
                     e.printStackTrace();
                 }
@@ -175,7 +241,9 @@ public class OrmObject implements OrmInterface {
         }
         //插入到collection当中去.
         collection.insertOne(document);
-        return 0;
+        ObjectId objectId = document.getObjectId("_id");
+        return objectId;
+
     }
 
 

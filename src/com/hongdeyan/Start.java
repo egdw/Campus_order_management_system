@@ -1,5 +1,6 @@
 package com.hongdeyan;
 
+import com.hongdeyan.model.Duty;
 import com.hongdeyan.model.Greens;
 import com.hongdeyan.model.User;
 import com.hongdeyan.orm.OrmObject;
@@ -27,18 +28,34 @@ public class Start {
 
     public static void main(String[] args) {
 //        Greens greens = new Greens();
-//        greens.setDesc("这是测2easd试内容");
-//        greens.setMoney(10.2f);
-//        greens.setName("测试2");
+//        greens.setDesc("这是测zxczx试内容");
+//        greens.setMoney(0.02f);
+//        greens.setName("测试100");
 //        greens.setPic("http://www.so.com");
 //        greens.setSaled(3);
-        OrmObject ormObject = new OrmObject();
-//        ormObject.add(greens);
+//        OrmObject ormObject = new OrmObject();
+//        Object save = ormObject.save(greens);
+//        System.out.println(save);
 
-        Greens obj = (Greens) ormObject.getObj("5bd283766e9978328d3d7573", Greens.class);
+
+//        User user = new User();
+//        user.setPassword("hzkjzyjsxy");
+//        user.setUsername("hdy");
+//        Duty duty = new Duty();
+//        duty.setDutyName("管理员");
+//        user.setDuty(duty);
+        OrmObject object = new OrmObject();
+//        Object save = object.save(user);
+//        System.out.println(save);
+
+        User obj = (User) object.getObj("5bd2d01c6e997838cc7cf198", User.class);
         System.out.println(obj);
-        int remove = ormObject.remove(obj);
-        System.out.println("删除了" + remove + "个");
+        obj.getDuty().setDutyName("这不是管理员2");
+        object.save(obj);
+//        Greens obj = (Greens) ormObject.getObj("5bd2834f6e9978328153b876", Greens.class);
+//        System.out.println(obj);
+//        int remove = ormObject.remove(obj);
+//        System.out.println("删除了" + remove + "个");
 
         //判断启动的时候传入的数据.判断是启动服务端还是客户端
         //实际项目应该进行分开.这里为了方便起见直接整合在一个jar文件当中.
