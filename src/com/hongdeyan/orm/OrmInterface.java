@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface OrmInterface {
 
-    public Object getObj(MongoCursor<Document> cursor, Class<?> aClass);
+    public Object getObj(String objId, Class<?> aClass);
 
     public List getObjArr(MongoCursor<Document> cursor, Class<?> aClass);
 

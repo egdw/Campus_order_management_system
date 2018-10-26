@@ -1,10 +1,13 @@
 package com.hongdeyan;
 
+import com.hongdeyan.model.Greens;
 import com.hongdeyan.model.User;
+import com.hongdeyan.orm.OrmObject;
 import lombok.extern.log4j.Log4j;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -23,17 +26,17 @@ import java.util.Iterator;
 public class Start {
 
     public static void main(String[] args) {
-        User user = new User();
-        Class<? extends User> userClass = user.getClass();
-        Field[] fields = userClass.getDeclaredFields();
-        System.out.println(Arrays.toString(fields));
-        Field[] declaredFields = userClass.getDeclaredFields();
-        for (int i = 0; i < declaredFields.length; i++) {
-            System.out.println(declaredFields[i].getName());
-            if (declaredFields[i].getType().toString().equals(String.class.toString())) {
-                System.out.println("是字符串");
-            }
-        }
+//        Greens greens = new Greens();
+//        greens.setDesc("这是测2easd试内容");
+//        greens.setMoney(10.2f);
+//        greens.setName("测试2");
+//        greens.setPic("http://www.so.com");
+//        greens.setSaled(3);
+        OrmObject ormObject = new OrmObject();
+//        ormObject.add(greens);
+
+        Greens obj = (Greens) ormObject.getObj("5bd283766e9978328d3d7573", Greens.class);
+        System.out.println(obj);
 
         //判断启动的时候传入的数据.判断是启动服务端还是客户端
         //实际项目应该进行分开.这里为了方便起见直接整合在一个jar文件当中.
