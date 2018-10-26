@@ -11,9 +11,9 @@ public interface OrmInterface {
 
     public List getObjArr(MongoCursor<Document> cursor, Class<?> aClass);
 
-    public int add(Object object);
-
-    public int remove(String id);
+    public int save(Object object);
 
     public int remove(Object object);
+
+    public int update(Object object);
 }

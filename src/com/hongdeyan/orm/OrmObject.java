@@ -9,6 +9,7 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.result.DeleteResult;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.BasicBSONObject;
 import org.bson.Document;
@@ -46,8 +47,6 @@ public class OrmObject implements OrmInterface {
         FindIterable<Document> documents = collection.find(dbObject);
         MongoCursor<Document> cursor = documents.iterator();
 
-        //获取传入类的名称.查找相关的数据
-//        MongoCollection<Document> collection = MongoServer.database.getCollection(aClass.getSimpleName());
         Object newInstance = null;
         try {
             //通过反射创建一个新的对象
@@ -57,6 +56,7 @@ public class OrmObject implements OrmInterface {
         } catch (IllegalAccessException e) {
             e.printStackTrace();
         }
+        //获取所有的属性
         Field[] declaredFields = aClass.getDeclaredFields();
         while (cursor.hasNext()) {
             Document document = cursor.next();
@@ -129,7 +129,7 @@ public class OrmObject implements OrmInterface {
     }
 
     @Override
-    public int add(Object object) {
+    public int save(Object object) {
         Class<?> aClass = object.getClass();
         com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
         if (annotation == null) {
@@ -178,13 +178,44 @@ public class OrmObject implements OrmInterface {
         return 0;
     }
 
+
     @Override
-    public int remove(String id) {
+    public int remove(Object object) {
+        Class<?> aClass = object.getClass();
+        com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
+        if (annotation == null) {
+            throw new UnsupportedOperationException("当前的类没有@Document的注解!");
+        }
+        String collection_name = aClass.getSimpleName();
+        if (!annotation.doucument_name().equals("")) {
+            collection_name = annotation.doucument_name();
+        }
+        //从collection当中查询相应的id.
+        MongoCollection<Document> collection = MongoServer.database.getCollection(collection_name);
+        //从class当中获取id
+        Field[] declaredFields = aClass.getDeclaredFields();
+        for (int i = 0; i < declaredFields.length; i++) {
+            Field field = declaredFields[i];
+            field.setAccessible(true);
+            Id id = field.getAnnotation(Id.class);
+            if (id != null) {
+                try {
+                    String obj = (String) field.get(object);
+                    BasicDBObject dbObject = new BasicDBObject();
+                    dbObject.put("_id", new ObjectId(obj));
+                    DeleteResult deleteResult = collection.deleteOne(dbObject);
+                    long deletedCount = deleteResult.getDeletedCount();
+                    return (int) deletedCount;
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
         return 0;
     }
 
     @Override
-    public int remove(Object object) {
+    public int update(Object object) {
         return 0;
     }
 

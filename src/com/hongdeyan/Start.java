@@ -37,6 +37,8 @@ public class Start {
 
         Greens obj = (Greens) ormObject.getObj("5bd283766e9978328d3d7573", Greens.class);
         System.out.println(obj);
+        int remove = ormObject.remove(obj);
+        System.out.println("删除了" + remove + "个");
 
         //判断启动的时候传入的数据.判断是启动服务端还是客户端
         //实际项目应该进行分开.这里为了方便起见直接整合在一个jar文件当中.
