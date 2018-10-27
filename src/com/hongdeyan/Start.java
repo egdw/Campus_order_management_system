@@ -10,6 +10,7 @@ import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * 校园订餐管理系统
@@ -23,9 +24,9 @@ public class Start {
     public static void main(String[] args) {
         //判断启动的时候传入的数据.判断是启动服务端还是客户端
         //实际项目应该进行分开.这里为了方便起见直接整合在一个jar文件当中.
-
-        User obj = Orm.get("5bd423916e99786421562c81", User.class);
-        System.out.println(obj);
+//        User obj = Orm.get("5bd423916e99786421562c81", User.class);
+        List selectAll = Orm.selectAll(User.class);
+        System.out.println(selectAll);
 //        args = new String[]{"server"};
 //        if (args != null) {
 //            String input = args[0];

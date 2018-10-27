@@ -17,33 +17,46 @@ import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 /**
- * 通过从数据库当中查询出相应的结果转换成相应的对象属性
+ * final 禁止被继承
+ * synchronize 防止脏数据
  *
- * @author hdy
+ * @author 洪德衍
+ * @version 2018-10-27
  */
 @Slf4j
-public class Orm {
+public final class Orm {
 
-    public static <V> V get(String objId, Class<V> aClass) {
-        com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
-        if (annotation == null) {
-            throw new UnsupportedOperationException("当前的类没有@Document的注解!");
-        }
-        String collection_name = aClass.getSimpleName();
-        if (!annotation.doucument_name().equals("")) {
-            collection_name = annotation.doucument_name();
-        }
-        //从collection当中查询相应的id.
-        MongoCollection<Document> collection = MongoServer.database.getCollection(collection_name);
+    private Orm() {
+        //禁止实例化
+    }
+
+
+    public synchronized static <V> V get(String objId, Class<V> aClass) {
+        MongoCollection<Document> collection = getCollection(aClass);
         BasicDBObject dbObject = new BasicDBObject();
         dbObject.put("_id", new ObjectId(objId));
-        FindIterable<Document> documents = collection.find(dbObject);
-        MongoCursor<Document> cursor = documents.iterator();
+        MongoCursor<Document> cursor = collection.find(dbObject).iterator();
+        //获取所有的属性
+        while (cursor.hasNext()) {
+            Document document = cursor.next();
+            return convertToClass(aClass, document);
+        }
+        return (V) null;
+    }
 
+
+    /**
+     * 重要的函数,把一个Document当中的所有数据转换成为与类相关的数据
+     *
+     * @param aClass   需要转换的类对象
+     * @param document 数据库查询出来的结果对象
+     * @param <V>      返回输入的类对象
+     * @return 输入的类对象
+     */
+    private synchronized static <V> V convertToClass(Class<V> aClass, Document document) {
         Object newInstance = null;
         try {
             //通过反射创建一个新的对象
@@ -53,43 +66,39 @@ public class Orm {
         } catch (IllegalAccessException e) {
             e.printStackTrace();
         }
-        //获取所有的属性
         Field[] declaredFields = aClass.getDeclaredFields();
-        while (cursor.hasNext()) {
-            Document document = cursor.next();
-            for (int i = 0; i < declaredFields.length; i++) {
-                Field field = declaredFields[i];
-                //获取当前类中的类型.档位数据库中数据默认的值
-                Class<?> type = field.getType();
-                try {
-                    Field declaredField = newInstance.getClass().getDeclaredField(field.getName());
-                    declaredField.setAccessible(true);
-                    //获取当前属性的注解
-                    Id id = declaredField.getAnnotation(Id.class);
-                    Param param = declaredField.getAnnotation(Param.class);
-                    DbRef dbRef = declaredField.getAnnotation(DbRef.class);
-                    if (id != null || param != null || dbRef != null) {
-                        //说明是已经标记注解的属性.可以进行数据自动的导入.
-                        String paramName = null;
-                        if (id != null && !id.param_name().equals("")) {
-                            //如果存在特定的标记的话就是用特定的标记
-                            paramName = id.param_name();
-                        } else if (param != null && !param.param_name().equals("")) {
-                            paramName = param.param_name();
-                        } else {
-                            //如果没有设置的话默认是用属性的名称.
-                            paramName = field.getName();
-                        }
-                        if (paramName.equals("id") && id != null) {
-                            //判断是否是id.如果是.转换成为_id;
-                            paramName = "_id";
-                        }
-                        if (id != null) {
-                            //说明是主键
-                            declaredField.set(newInstance, document.getObjectId(paramName).toString());
-                            //下面的代码不执行
-                            continue;
-                        }
+        for (int i = 0; i < declaredFields.length; i++) {
+            Field field = declaredFields[i];
+            Class<?> type = field.getType();
+            //获取当前类中的类型.档位数据库中数据默认的值
+            try {
+                Field declaredField = newInstance.getClass().getDeclaredField(field.getName());
+                declaredField.setAccessible(true);
+                //获取当前属性的注解
+                Id id = declaredField.getAnnotation(Id.class);
+                Param param = declaredField.getAnnotation(Param.class);
+                DbRef dbRef = declaredField.getAnnotation(DbRef.class);
+                if (id != null || param != null || dbRef != null) {
+                    //说明是已经标记注解的属性.可以进行数据自动的导入.
+                    String paramName = null;
+                    if (id != null && !id.param_name().equals("")) {
+                        //如果存在特定的标记的话就是用特定的标记
+                        paramName = id.param_name();
+                    } else if (param != null && !param.param_name().equals("")) {
+                        paramName = param.param_name();
+                    } else {
+                        //如果没有设置的话默认是用属性的名称.
+                        paramName = field.getName();
+                    }
+                    if (paramName.equals("id") && id != null) {
+                        //判断是否是id.如果是.转换成为_id;
+                        paramName = "_id";
+                    }
+                    if (id != null) {
+                        //说明是主键
+                        declaredField.set(newInstance, document.getObjectId(paramName).toString());
+                        //下面的代码不执行
+                    } else {
                         if (type == String.class) {
                             //说明是字符串
                             declaredField.set(newInstance, document.getString(paramName));
@@ -122,29 +131,34 @@ public class Orm {
                                 if (objectId == null) {
                                     //说明不存在,为空
                                     declaredField.set(newInstance, null);
-                                    continue;
+                                } else {
+                                    //进行递归调用
+                                    declaredField.set(newInstance, get(objectId.toString(), fieldType));
                                 }
-                                //进行递归调用
-                                declaredField.set(newInstance, get(objectId.toString(), fieldType));
                             }
                         }
                     }
-
-                } catch (NoSuchFieldException e) {
-                    e.printStackTrace();
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
                 }
+
+            } catch (NoSuchFieldException e) {
+                e.printStackTrace();
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
             }
         }
+
+
         return (V) newInstance;
     }
 
-    public static List<Object> getObjArr(MongoCursor<Document> cursor, Class<?> aClass) {
-        return null;
-    }
-
-    public static <V> V save(V object) {
+    /**
+     * 保存类到数据库
+     *
+     * @param object 需要保存的类
+     * @param <V>
+     * @return
+     */
+    public synchronized static <V> V save(V object) {
         ObjectId id = getObjectId(object);
         if (id == null) {
             id = saveInner(object);
@@ -166,27 +180,11 @@ public class Orm {
      * @param object 传入需要保存在collection中的object类
      * @return 返回存入的id
      */
-    private static ObjectId saveInner(Object object) {
+    private synchronized static ObjectId saveInner(Object object) {
         if (object == null)
             return null;
         Class<?> aClass = object.getClass();
-        com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
-        if (annotation == null) {
-            throw new UnsupportedOperationException("当前的类没有@Document的注解!");
-        }
-        String doucumentName = annotation.doucument_name();
-        if ("".equals(doucumentName)) {
-            //如果没有输入的话默认为类的名称
-            doucumentName = aClass.getSimpleName();
-        }
-        //获取到一个collection对象
-        MongoCollection<Document> collection = MongoServer.database.getCollection(doucumentName);
-        if (collection == null) {
-            //如果collection对象为null的话说明数据库当中没有存在collection.
-            //自动创建一个
-            MongoServer.database.createCollection(doucumentName);
-            log.info("没有找到" + doucumentName + "的collection自动创建完成.");
-        }
+        MongoCollection<Document> collection = getCollection(aClass);
         Document document = new Document();
         //获取类的所有的fields属性.
         Field[] fields = aClass.getDeclaredFields();
@@ -238,18 +236,9 @@ public class Orm {
      * @param object 需要删除的数据
      * @return
      */
-    public static int remove(Object object) {
+    public synchronized static int remove(Object object) {
         Class<?> aClass = object.getClass();
-        com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
-        if (annotation == null) {
-            throw new UnsupportedOperationException("当前的类没有@Document的注解!");
-        }
-        String collection_name = aClass.getSimpleName();
-        if (!annotation.doucument_name().equals("")) {
-            collection_name = annotation.doucument_name();
-        }
-        //从collection当中查询相应的id.
-        MongoCollection<Document> collection = MongoServer.database.getCollection(collection_name);
+        MongoCollection<Document> collection = getCollection(aClass);
         //从class当中获取id
         Field[] declaredFields = aClass.getDeclaredFields();
         for (int i = 0; i < declaredFields.length; i++) {
@@ -283,18 +272,9 @@ public class Orm {
      * @param object
      * @return
      */
-    public static int update(Object object) {
+    public synchronized static int update(Object object) {
         Class<?> aClass = object.getClass();
-        com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
-        if (annotation == null) {
-            throw new UnsupportedOperationException("当前的类没有@Document的注解!");
-        }
-        String collection_name = aClass.getSimpleName();
-        if (!annotation.doucument_name().equals("")) {
-            collection_name = annotation.doucument_name();
-        }
-        //从collection当中查询相应的id.
-        MongoCollection<Document> collection = MongoServer.database.getCollection(collection_name);
+        MongoCollection<Document> collection = getCollection(aClass);
 
         Document document = new Document();
         Field[] fields = aClass.getDeclaredFields();
@@ -354,7 +334,7 @@ public class Orm {
         return (int) updateResult.getModifiedCount();
     }
 
-    private static Document getParamDocument(Object object, Document document, Field field, Param param) {
+    private synchronized static Document getParamDocument(Object object, Document document, Field field, Param param) {
         if (param != null) {
             //说明添加了注解的
             String param_name = field.getName();
@@ -377,27 +357,11 @@ public class Orm {
      * @param obj
      * @return
      */
-    private static ObjectId getObjectId(Object obj) {
+    private synchronized static ObjectId getObjectId(Object obj) {
         if (obj == null)
             return null;
         Class<?> aClass = obj.getClass();
-        com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
-        if (annotation == null) {
-            throw new UnsupportedOperationException("当前的类没有@Document的注解!");
-        }
-        String doucumentName = annotation.doucument_name();
-        if ("".equals(doucumentName)) {
-            //如果没有输入的话默认为类的名称
-            doucumentName = aClass.getSimpleName();
-        }
-        //获取到一个collection对象
-        MongoCollection<Document> collection = MongoServer.database.getCollection(doucumentName);
-        if (collection == null) {
-            //如果collection对象为null的话说明数据库当中没有存在collection.
-            //自动创建一个
-            MongoServer.database.createCollection(doucumentName);
-            log.info("没有找到" + doucumentName + "的collection自动创建完成.");
-        }
+        MongoCollection<Document> collection = getCollection(aClass);
         Field[] fields = aClass.getDeclaredFields();
         for (int i = 0; i < fields.length; i++) {
             fields[i].setAccessible(true);
@@ -426,6 +390,99 @@ public class Orm {
             }
         }
         return null;
+    }
+
+
+    /**
+     * 传入相应的外部map参数,删除指定参数的数据
+     *
+     * @param filter 条件
+     * @param aClass 需要删除数据的对象class
+     * @param multi  是否删除多条记录
+     * @return 删除的数量
+     */
+    public synchronized static int deleteOneOrMany(HashMap<String, Object> filter, Class<?> aClass, boolean multi) {
+        //从collection当中查询相应的id.
+        MongoCollection<Document> collection = getCollection(aClass);
+        Document document = new Document();
+        Iterator<Map.Entry<String, Object>> iterator = filter.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, Object> entry = iterator.next();
+            document.append(entry.getKey(), entry.getValue());
+        }
+        DeleteResult deleteResult = collection.deleteMany(document);
+        return (int) deleteResult.getDeletedCount();
+    }
+
+
+    /**
+     * 通过传入外部的bson代码进行获取相应的数据
+     *
+     * @param aClass 需要的例行
+     * @param bson   beso数据
+     * @return List 返回查询到的类
+     */
+    public synchronized static List select(Class<?> aClass, Bson bson) {
+        MongoCollection<Document> collection = getCollection(aClass);
+        FindIterable<Document> documents = collection.find(bson);
+        MongoCursor<Document> iterator = documents.iterator();
+        List list = new ArrayList();
+        while (iterator.hasNext()) {
+            //遍历所有的属性
+            Document document = iterator.next();
+            Object convert = convertToClass(aClass, document);
+            list.add(convert);
+        }
+        return list;
+    }
+
+
+    /**
+     * 获取一个Collection当中的所有数据
+     *
+     * @param aClass 传入的类类型
+     * @return 集合
+     */
+    public synchronized static List selectAll(Class<?> aClass) {
+        MongoCollection<Document> collection = getCollection(aClass);
+        FindIterable<Document> documents = collection.find();
+        MongoCursor<Document> iterator = documents.iterator();
+        List list = new ArrayList();
+        while (iterator.hasNext()) {
+            //遍历所有的属性
+            Document document = iterator.next();
+            Object convert = convertToClass(aClass, document);
+            list.add(convert);
+        }
+        return list;
+    }
+
+
+    /**
+     * 通过一个Class对象获取Collection对象
+     *
+     * @param aClass
+     * @return 返回的Collection对象
+     */
+    private synchronized static MongoCollection<Document> getCollection(Class<?> aClass) {
+        com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
+        if (annotation == null) {
+            throw new UnsupportedOperationException("当前的类没有@Document的注解!");
+        }
+        String collection_name = aClass.getSimpleName();
+        if (!annotation.doucument_name().equals("")) {
+            collection_name = annotation.doucument_name();
+        }
+
+        //从collection当中查询相应的id.
+        MongoCollection<Document> collection = MongoServer.database.getCollection(collection_name);
+        if (collection == null) {
+            //如果collection对象为null的话说明数据库当中没有存在collection.
+            //自动创建一个
+            MongoServer.database.createCollection(collection_name);
+            log.info("没有找到" + collection_name + "的collection自动创建完成.");
+        }
+        return collection;
     }
 
 
