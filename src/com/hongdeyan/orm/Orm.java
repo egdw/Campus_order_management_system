@@ -3,21 +3,19 @@ package com.hongdeyan.orm;
 import com.hongdeyan.annotation.DbRef;
 import com.hongdeyan.annotation.Id;
 import com.hongdeyan.annotation.Param;
-import com.hongdeyan.model.User;
 import com.hongdeyan.static_class.MongoServer;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
-import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Filters;
 import com.mongodb.client.result.DeleteResult;
+import com.mongodb.client.result.UpdateResult;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.BasicBSONObject;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 
-import javax.print.attribute.standard.DocumentName;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.util.Date;
 import java.util.List;
@@ -28,10 +26,9 @@ import java.util.List;
  * @author hdy
  */
 @Slf4j
-public class OrmObject implements OrmInterface {
+public class Orm {
 
-    @Override
-    public Object getObj(String objId, Class<?> aClass) {
+    public static <V> V get(String objId, Class<V> aClass) {
         com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
         if (annotation == null) {
             throw new UnsupportedOperationException("当前的类没有@Document的注解!");
@@ -40,7 +37,6 @@ public class OrmObject implements OrmInterface {
         if (!annotation.doucument_name().equals("")) {
             collection_name = annotation.doucument_name();
         }
-
         //从collection当中查询相应的id.
         MongoCollection<Document> collection = MongoServer.database.getCollection(collection_name);
         BasicDBObject dbObject = new BasicDBObject();
@@ -129,8 +125,7 @@ public class OrmObject implements OrmInterface {
                                     continue;
                                 }
                                 //进行递归调用
-                                Object obj = getObj(objectId.toString(), fieldType);
-                                declaredField.set(newInstance, obj);
+                                declaredField.set(newInstance, get(objectId.toString(), fieldType));
                             }
                         }
                     }
@@ -142,20 +137,24 @@ public class OrmObject implements OrmInterface {
                 }
             }
         }
-        return newInstance;
+        return (V) newInstance;
     }
 
-    @Override
-    public List<Object> getObjArr(MongoCursor<Document> cursor, Class<?> aClass) {
+    public static List<Object> getObjArr(MongoCursor<Document> cursor, Class<?> aClass) {
         return null;
     }
 
-    @Override
-    public Object save(Object object) {
-        ObjectId objectId = saveInner(object);
-        if (objectId != null) {
+    public static <V> V save(V object) {
+        ObjectId id = getObjectId(object);
+        if (id == null) {
+            id = saveInner(object);
+        } else {
+            update(object);
+        }
+        if (id != null) {
             //说明插入成功
-            return getObj(objectId.toString(), object.getClass());
+            Object obj = get(id.toString(), object.getClass());
+            return (V) obj;
         }
         return null;
     }
@@ -167,7 +166,9 @@ public class OrmObject implements OrmInterface {
      * @param object 传入需要保存在collection中的object类
      * @return 返回存入的id
      */
-    private ObjectId saveInner(Object object) {
+    private static ObjectId saveInner(Object object) {
+        if (object == null)
+            return null;
         Class<?> aClass = object.getClass();
         com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
         if (annotation == null) {
@@ -189,38 +190,12 @@ public class OrmObject implements OrmInterface {
         Document document = new Document();
         //获取类的所有的fields属性.
         Field[] fields = aClass.getDeclaredFields();
+
         for (int i = 0; i < fields.length; i++) {
             Field field = fields[i];
             field.setAccessible(true);
             Param param = field.getAnnotation(Param.class);
-            Id id = field.getAnnotation(Id.class);
-            if (param != null) {
-                //说明添加了注解的
-                String param_name = field.getName();
-                if (!param.param_name().equals("")) {
-                    param_name = param.param_name();
-                }
-                try {
-                    document.append(param_name, field.get(object));
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
-                }
-            }
-            if (id != null) {
-                String param_name = field.getName();
-                if (!id.param_name().equals("")) {
-                    param_name = id.param_name();
-                }
-                if (param_name.equals("id")) {
-                    param_name = "_id";
-                }
-                try {
-                    //这里的更新保存还存在问题..还需要后续修复...
-                    document.append(param_name, field.get(object));
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
-                }
-            }
+            document = getParamDocument(object, document, field, param);
             DbRef dbRef = field.getAnnotation(DbRef.class);
             //判断是否存在外部引用
             if (dbRef != null) {
@@ -229,9 +204,19 @@ public class OrmObject implements OrmInterface {
                     param_name = dbRef.param_name();
                 }
                 try {
-                    ObjectId inner = saveInner(field.get(object));
-                    if (inner != null) {
-                        document.append(param_name, inner);
+                    //判断引用是否也需要update
+                    Object dbref = field.get(object);
+                    if (dbref != null) {
+                        ObjectId objectId = getObjectId(dbref);
+                        if (objectId != null) {
+                            //如果传入的外键是已经存在的话.那么就不进行保存了进行修改操作.
+                            update(dbref);
+                        } else {
+                            ObjectId inner = saveInner(dbref);
+                            document.append(param_name, inner);
+                        }
+                    } else {
+                        document.append(param_name, null);
                     }
                 } catch (IllegalAccessException e) {
                     e.printStackTrace();
@@ -247,8 +232,13 @@ public class OrmObject implements OrmInterface {
     }
 
 
-    @Override
-    public int remove(Object object) {
+    /**
+     * 暂不支持并联删除
+     *
+     * @param object 需要删除的数据
+     * @return
+     */
+    public static int remove(Object object) {
         Class<?> aClass = object.getClass();
         com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
         if (annotation == null) {
@@ -270,7 +260,12 @@ public class OrmObject implements OrmInterface {
                 try {
                     String obj = (String) field.get(object);
                     BasicDBObject dbObject = new BasicDBObject();
-                    dbObject.put("_id", new ObjectId(obj));
+                    if (obj == null) {
+                        dbObject.put("_id", null);
+
+                    } else {
+                        dbObject.put("_id", new ObjectId(obj));
+                    }
                     DeleteResult deleteResult = collection.deleteOne(dbObject);
                     long deletedCount = deleteResult.getDeletedCount();
                     return (int) deletedCount;
@@ -282,9 +277,155 @@ public class OrmObject implements OrmInterface {
         return 0;
     }
 
-    @Override
-    public int update(Object object) {
-        return 0;
+    /**
+     * update方式支持以及存在数据库当中的数据进行修改的操作
+     *
+     * @param object
+     * @return
+     */
+    public static int update(Object object) {
+        Class<?> aClass = object.getClass();
+        com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
+        if (annotation == null) {
+            throw new UnsupportedOperationException("当前的类没有@Document的注解!");
+        }
+        String collection_name = aClass.getSimpleName();
+        if (!annotation.doucument_name().equals("")) {
+            collection_name = annotation.doucument_name();
+        }
+        //从collection当中查询相应的id.
+        MongoCollection<Document> collection = MongoServer.database.getCollection(collection_name);
+
+        Document document = new Document();
+        Field[] fields = aClass.getDeclaredFields();
+        Bson query = null;
+        for (int i = 0; i < fields.length; i++) {
+            Field field = fields[i];
+            field.setAccessible(true);
+            Param param = field.getAnnotation(Param.class);
+            DbRef dbRef = field.getAnnotation(DbRef.class);
+            Id id = field.getAnnotation(Id.class);
+            document = getParamDocument(object, document, field, param);
+            if (id != null) {
+                String param_name = field.getName();
+                if (!id.param_name().equals("")) {
+                    param_name = id.param_name();
+                }
+                if (param_name.equals("id")) {
+                    param_name = "_id";
+                }
+                try {
+                    if (field.get(object) == null) {
+                        query = Filters.eq(param_name, null);
+                    } else {
+                        query = Filters.eq(param_name, new ObjectId((String) field.get(object)));
+                    }
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (dbRef != null) {
+                String param_name = field.getName();
+                if (!dbRef.param_name().equals("")) {
+                    param_name = dbRef.param_name();
+                }
+                try {
+                    //判断引用是否也需要update
+                    Object dbref = field.get(object);
+                    if (dbref != null) {
+                        ObjectId inner = getObjectId(dbref);
+                        //如果返回的是null的话说明没有初始化
+                        if (inner == null) {
+                            inner = saveInner(field.get(object));
+                            document.append(param_name, inner);
+                        } else {
+                            int update = update(dbref);
+                        }
+                    } else {
+                        document.append(param_name, null);
+                    }
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        UpdateResult updateResult = collection.updateOne(query, new Document("$set", document));
+        log.info("数据修改:" + updateResult);
+        return (int) updateResult.getModifiedCount();
+    }
+
+    private static Document getParamDocument(Object object, Document document, Field field, Param param) {
+        if (param != null) {
+            //说明添加了注解的
+            String param_name = field.getName();
+            if (!param.param_name().equals("")) {
+                param_name = param.param_name();
+            }
+            try {
+                document.append(param_name, field.get(object));
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            }
+        }
+        return document;
+    }
+
+
+    /**
+     * 通过传入的object类获取他的id
+     *
+     * @param obj
+     * @return
+     */
+    private static ObjectId getObjectId(Object obj) {
+        if (obj == null)
+            return null;
+        Class<?> aClass = obj.getClass();
+        com.hongdeyan.annotation.Document annotation = aClass.getAnnotation(com.hongdeyan.annotation.Document.class);
+        if (annotation == null) {
+            throw new UnsupportedOperationException("当前的类没有@Document的注解!");
+        }
+        String doucumentName = annotation.doucument_name();
+        if ("".equals(doucumentName)) {
+            //如果没有输入的话默认为类的名称
+            doucumentName = aClass.getSimpleName();
+        }
+        //获取到一个collection对象
+        MongoCollection<Document> collection = MongoServer.database.getCollection(doucumentName);
+        if (collection == null) {
+            //如果collection对象为null的话说明数据库当中没有存在collection.
+            //自动创建一个
+            MongoServer.database.createCollection(doucumentName);
+            log.info("没有找到" + doucumentName + "的collection自动创建完成.");
+        }
+        Field[] fields = aClass.getDeclaredFields();
+        for (int i = 0; i < fields.length; i++) {
+            fields[i].setAccessible(true);
+            Id id = fields[i].getAnnotation(Id.class);
+            if (id != null) {
+                try {
+                    //从数据库中查找是否已经存在相应id
+                    Object value = fields[i].get(obj);
+                    if (value != null) {
+                        Document document = new Document();
+                        String param_name = fields[i].getName();
+                        if (!id.param_name().equals("")) {
+                            param_name = id.param_name();
+                        }
+                        if (param_name.equals("id")) {
+                            param_name = "_id";
+                        }
+                        boolean hasNext = collection.find(document.append(param_name, new ObjectId((String) value))).iterator().hasNext();
+                        if (hasNext) {
+                            return new ObjectId((String) fields[i].get(obj));
+                        }
+                    }
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        return null;
     }
 
 
