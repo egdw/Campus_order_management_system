@@ -2,12 +2,7 @@ package com.hongdeyan.static_class;
 
 import com.hongdeyan.exception.NoDatabaseException;
 import com.mongodb.MongoClient;
-import com.mongodb.client.ListCollectionsIterable;
-import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
-import lombok.Getter;
-import lombok.Setter;
-import org.bson.Document;
 
 /**
  * 用于连接mongodb的数据库静态类
@@ -29,16 +24,6 @@ public class MongoServer {
             } catch (NoDatabaseException e) {
                 e.printStackTrace();
             }
-        } else {
-            isCreated();
         }
-    }
-
-    /**
-     * 判断数据库当中是否已经创建了相关的数据库和关系
-     * 如果没有相应的collection的话就创建数据
-     */
-    public static void isCreated() {
-        
     }
 }

@@ -4,9 +4,7 @@ import com.hongdeyan.annotation.DbRef;
 import com.hongdeyan.annotation.Document;
 import com.hongdeyan.annotation.Id;
 import com.hongdeyan.annotation.Param;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
+import lombok.*;
 
 @Getter
 @Setter

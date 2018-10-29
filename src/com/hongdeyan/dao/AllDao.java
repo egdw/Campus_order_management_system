@@ -2,11 +2,11 @@ package com.hongdeyan.dao;
 
 public interface AllDao<E> {
     //增加
-    public void add(E e);
+    public E add(E e);
     //移除
-    public void remove(String id);
+    public int remove(String id);
     //获取
-    public void get(String id);
+    public E get(String id);
     //修改
-    public void update(E e);
+    public int update(E e);
 }
