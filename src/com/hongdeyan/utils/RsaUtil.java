@@ -83,7 +83,7 @@ public class RsaUtil {
             String strpk = new String(Base64.encodeBase64(pk));
             String strprivk = new String(Base64.encodeBase64(privk));
 //			System.out.println("..." + strprivk);
-            String[] strings = {URLEncoder.encode(strpk, "utf-8"), strprivk, "utf-8"};
+            String[] strings = {strpk, strprivk, "utf-8"};
             return strings;
             // System.out.println("公钥Base64编码:" + strpk);
             // System.out.println("私钥Base64编码:" + strprivk);

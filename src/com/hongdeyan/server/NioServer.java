@@ -1,5 +1,9 @@
 package com.hongdeyan.server;
 
+import com.alibaba.fastjson.JSON;
+import com.hongdeyan.message_model.Request;
+import com.hongdeyan.static_class.RSA;
+import com.hongdeyan.utils.RsaUtil;
 import lombok.extern.log4j.Log4j;
 import lombok.extern.slf4j.Slf4j;
 
@@ -75,7 +79,6 @@ public class NioServer {
                 SelectionKey selectionKey = iterator.next();
                 //移除当前的selectionKey.防止重复使用
                 iterator.remove();
-
                 //状态为accept的时候
                 if (selectionKey.isAcceptable()) {
                     SocketChannel socketChannel = null;
@@ -95,7 +98,6 @@ public class NioServer {
                     }
 //                        selectionKey.interestOps(SelectionKey.OP_READ);
                 }
-
                 //状态为read的时候
                 if (selectionKey.isValid() && selectionKey.isReadable()) {
                     SocketChannel channel = (SocketChannel) selectionKey.channel();
@@ -123,29 +125,41 @@ public class NioServer {
                         }
                     } else {
                         //说明客户端没有断开
-                        System.out.println("服务器获取到的信息为:" + message);
+//                        System.out.println("服务器获取到的信息为:" + message);
                         //准备返回Respond
                         try {
+                            log.info(message);
+                            String decryptData = RsaUtil.decryptData(message, RSA.PRIVATEKEY);
+                            selectionKey.attach(JSON.parseObject(decryptData, Request.class));
                             selectionKey.interestOps(SelectionKey.OP_WRITE);
                         } catch (Exception e) {
-                            log.info("客户端断开..");
+                            log.info("客户端断开.." + e.getMessage());
                         }
                     }
                 }
 
                 //状态为可写的时候
                 if (selectionKey.isValid() && selectionKey.isWritable()) {
+                    Request attachment = (Request) selectionKey.attachment();
+                    if (attachment == null) {
+                        selectionKey.interestOps(SelectionKey.OP_READ);
+                        return;
+                    }
                     SocketChannel channel = (SocketChannel) selectionKey.channel();
                     ByteBuffer byteBuffer = ByteBuffer.allocate(2048);
-                    byteBuffer.put("<html><h1>Hello My Server.If you see this page that means my website server is working!</h1></html>".getBytes());
+                    System.out.println(attachment);
+                    byteBuffer.put((attachment.getCode() + "").getBytes());
+                    log.info("返回数据:" + attachment.getCode());
                     byteBuffer.flip();
                     try {
                         channel.write(byteBuffer);
                     } catch (IOException e) {
                         log.error(e.getMessage());
                     }
+                    selectionKey.attach(null);
                     selectionKey.interestOps(SelectionKey.OP_READ);
                 }
+
             }
         }
     }

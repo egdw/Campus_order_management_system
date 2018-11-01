@@ -1,6 +1,8 @@
 package com.hongdeyan.server;
 
 import com.hongdeyan.message_model.Request;
+import com.hongdeyan.static_class.RSA;
+import com.hongdeyan.utils.RsaUtil;
 import com.mongodb.util.JSON;
 import lombok.extern.slf4j.Slf4j;
 
@@ -13,23 +15,22 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
-public class NioClient{
+public class NioClient {
     private SocketChannel socketChannel = null;
     private Selector socketSelector = null;
     private static Object lock = new Object();
     private static NioClient nioClient;
     private volatile boolean isConnect = false;
-
-
-    private volatile String sendMessage;
-    private volatile SendBack sendBack;
-
+    private volatile static Thread mainThread;
     private volatile SelectionKey selectionKey;
+    private volatile boolean isRun = false;
+    private volatile Boolean sending = false;
 
     private NioClient() {
-
+        init();
     }
 
 
@@ -42,71 +43,97 @@ public class NioClient{
         }
     }
 
-    public void run() {
-        init();
-        boolean isRun = true;
-        while (isRun) {
-            int select = 0;
-            try {
-                select = socketSelector.select();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            if (select <= 0) continue;
-            Iterator<SelectionKey> iterator = socketSelector.selectedKeys().iterator();
-            while (iterator.hasNext()) {
-                selectionKey = iterator.next();
-                iterator.remove();
-                if (selectionKey.isWritable() && sendMessage != null) {
-                    log.info("客户端已经可以写了");
+    private void run() {
+        mainThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                isRun = true;
+                while (isRun) {
+                    int select = 0;
                     try {
-                        socketChannel.write(ByteBuffer.wrap(sendMessage.getBytes()));
+                        select = socketSelector.selectNow();
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
-                    selectionKey.interestOps(SelectionKey.OP_READ);
-                }
-                if (selectionKey.isReadable()) {
-                    log.info("客户端已经可以读了");
-                    ByteBuffer allocate = ByteBuffer.allocate(1024);
-                    StringBuilder sb = new StringBuilder();
-                    long read = -1;
-                    try {
-                        while ((read = socketChannel.read(allocate)) > 0) {
-                            allocate.flip();
-                            sb.append(new String(allocate.array(), 0, (int) read));
-                            allocate.clear();
+                    if (select <= 0) continue;
+                    Iterator<SelectionKey> iterator = socketSelector.selectedKeys().iterator();
+                    while (iterator.hasNext()) {
+                        selectionKey = iterator.next();
+                        iterator.remove();
+                        if (selectionKey.isWritable() && selectionKey.isValid()) {
+//                            log.info("客户端已经可以写了");
+                            try {
+                                Object[] attachment = (Object[]) selectionKey.attachment();
+                                if (attachment != null) {
+                                    String encryptData = RsaUtil.encryptData(((String) attachment[1]), RSA.PUBLICKEY);
+                                    socketChannel.write(ByteBuffer.wrap(encryptData.getBytes()));
+                                    selectionKey.interestOps(SelectionKey.OP_READ);
+                                }
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
                         }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                    String message = sb.toString();
-                    if (message == null || "".equals(message)) {
-                        //说明服务器已经断开
-                        log.info("连接到服务器断开");
-                        selectionKey.cancel();
-                        try {
-                            socketChannel.close();
-                        } catch (IOException e) {
-                            e.printStackTrace();
+                        if (selectionKey.isReadable() && selectionKey.isValid()) {
+//                            log.info("客户端已经可以读了");
+                            ByteBuffer allocate = ByteBuffer.allocate(1024);
+                            StringBuilder sb = new StringBuilder();
+                            long read = -1;
+                            try {
+                                while ((read = socketChannel.read(allocate)) > 0) {
+                                    allocate.flip();
+                                    sb.append(new String(allocate.array(), 0, (int) read));
+                                    allocate.clear();
+                                }
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                            String message = sb.toString();
+                            if (message == null || "".equals(message)) {
+                                //说明服务器已经断开
+                                log.info("连接到服务器断开");
+                                selectionKey.cancel();
+                                try {
+                                    socketChannel.close();
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                                isRun = false;
+                                return;
+                            }
+                            SendBack sendBack = null;
+                            Object[] attachment = (Object[]) selectionKey.attachment();
+                            sendBack = (SendBack) attachment[0];
+
+                            //取消绑定的数据
+                            selectionKey.attach(null);
+                            selectionKey.interestOps(SelectionKey.OP_WRITE);
+                            sendBack.get(message);
+//                            selectionKey.interestOps(0);
                         }
-                        isRun = false;
-                    }
-                    sendBack.get(message);
-//                    一次交互完成
-                    synchronized (sendMessage) {
-                        sendMessage = null;
-                        selectionKey.interestOps(0);
                     }
                 }
             }
-        }
+        });
+        mainThread.setName("client_main_thread");
+        mainThread.start();
     }
 
 
-    public synchronized void send(Request request, SendBack sendBack){
+    public synchronized void send(Request request, SendBack sendBack) {
+        if (mainThread == null || mainThread.isInterrupted()) {
+            run();
+        }
         if (socketChannel == null || socketSelector == null || request == null || sendBack == null) {
-            throw new NullPointerException();
+            //如果没有,这里先等待一下
+            try {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            boolean complete = nioClient.isComplete();
+            if (!complete) {
+                throw new NullPointerException();
+            }
         }
         try {
             if (!socketSelector.isOpen() || !socketChannel.finishConnect()) {
@@ -119,16 +146,23 @@ public class NioClient{
         } catch (IOException e) {
             e.printStackTrace();
         }
-        try {
-            socketChannel.register(socketSelector, SelectionKey.OP_WRITE);
-        } catch (ClosedChannelException e) {
-            e.printStackTrace();
-        }
         if (selectionKey != null && selectionKey.isValid()) {
-            selectionKey.interestOps(SelectionKey.OP_WRITE);
+            //如果selectionkey存在的话就直接调用selectionKey
+            synchronized (selectionKey) {
+                selectionKey.attach(new Object[]{sendBack, com.alibaba.fastjson.JSON.toJSONString(request)});
+                selectionKey.interestOps(SelectionKey.OP_WRITE);
+            }
+        } else {
+            try {
+                //否则使用channel修改OP
+                synchronized (socketChannel) {
+                    SelectionKey register = socketChannel.register(socketSelector, SelectionKey.OP_WRITE);
+                    register.attach(new Object[]{sendBack, com.alibaba.fastjson.JSON.toJSONString(request)});
+                }
+            } catch (ClosedChannelException e) {
+                e.printStackTrace();
+            }
         }
-        this.sendMessage = com.alibaba.fastjson.JSON.toJSONString(request);
-        this.sendBack = sendBack;
     }
 
     /**
