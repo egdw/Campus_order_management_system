@@ -11,7 +11,6 @@ import lombok.ToString;
 @Getter
 @Setter
 @ToString
-@AllArgsConstructor
 @Document
 public class Duty {
     //责任名称.比如 厨师 用户....
@@ -19,4 +18,11 @@ public class Duty {
     private String id;
     @Param(param_name = "dutyName")
     private String dutyName;
+
+    public Duty(String dutyName) {
+        this.dutyName = dutyName;
+    }
+
+    public Duty() {
+    }
 }

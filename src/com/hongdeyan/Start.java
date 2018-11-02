@@ -27,10 +27,10 @@ public class Start {
 
         //判断启动的时候传入的数据.判断是启动服务端还是客户端
         //实际项目应该进行分开.这里为了方便起见直接整合在一个jar文件当中.
-        args = new String[]{"server"};
+        args = new String[]{"123"};
         if (args != null) {
 //            String input = args[0];
-            if (true) {
+            if (false) {
                 NioServer server = NioServer.getInstance();
             } else {
                 //如果输入的是client或者不输入的话就代表使用客户端的启动形式

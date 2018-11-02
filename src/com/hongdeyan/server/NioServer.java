@@ -1,7 +1,14 @@
 package com.hongdeyan.server;
 
 import com.alibaba.fastjson.JSON;
+import com.hongdeyan.constant.RequestStatus;
+import com.hongdeyan.constant.RespondStatus;
 import com.hongdeyan.message_model.Request;
+import com.hongdeyan.message_model.Respond;
+import com.hongdeyan.model.Duty;
+import com.hongdeyan.model.User;
+import com.hongdeyan.service.DutyService;
+import com.hongdeyan.service.UserService;
 import com.hongdeyan.static_class.RSA;
 import com.hongdeyan.utils.RsaUtil;
 import lombok.extern.log4j.Log4j;
@@ -129,8 +136,9 @@ public class NioServer {
                         //准备返回Respond
                         try {
                             log.info(message);
-                            String decryptData = RsaUtil.decryptData(message, RSA.PRIVATEKEY);
-                            selectionKey.attach(JSON.parseObject(decryptData, Request.class));
+//                            String decryptData = RsaUtil.decryptData(message, RSA.PRIVATEKEY);
+                            //获取到数据之后进行解密操作
+                            selectionKey.attach(JSON.parseObject(message, Request.class));
                             selectionKey.interestOps(SelectionKey.OP_WRITE);
                         } catch (Exception e) {
                             log.info("客户端断开.." + e.getMessage());
@@ -145,10 +153,14 @@ public class NioServer {
                         selectionKey.interestOps(SelectionKey.OP_READ);
                         return;
                     }
+                    //这里需要进行数据的操作
+
+                    Respond respond = handler(attachment);
+
                     SocketChannel channel = (SocketChannel) selectionKey.channel();
                     ByteBuffer byteBuffer = ByteBuffer.allocate(2048);
-                    System.out.println(attachment);
-                    byteBuffer.put((attachment.getCode() + "").getBytes());
+
+                    byteBuffer.put((JSON.toJSONString(respond)).getBytes());
                     log.info("返回数据:" + attachment.getCode());
                     byteBuffer.flip();
                     try {
@@ -162,5 +174,57 @@ public class NioServer {
 
             }
         }
+    }
+
+
+    /**
+     * 在这里处理相关的请求
+     *
+     * @param request
+     * @return
+     */
+    private static Respond handler(Request request) {
+        Respond respond = new Respond();
+        if (RequestStatus.LOGIN.getCode() == request.getCode()) {
+            User user = JSON.parseObject(request.getMessage(), User.class);
+            log.info(user + "");
+            UserService service = UserService.getInstance();
+            User byUserNameAndPassword = service.findByUserNameAndPassword(user.getUsername(), user.getPassword());
+            log.info("查询到的用户为:" + byUserNameAndPassword);
+            if (byUserNameAndPassword != null) {
+                respond.setCode(RespondStatus.LOGIN_SUCCESS.getCode());
+                respond.setMessage(RespondStatus.LOGIN_SUCCESS.getMessage());
+            } else {
+                respond.setCode(RespondStatus.LOGIN_FAIL.getCode());
+                respond.setMessage(RespondStatus.LOGIN_FAIL.getMessage());
+            }
+            //请求登录
+        } else if (RequestStatus.REGISTER.getCode() == request.getCode()) {
+            //请求注册
+            User user = JSON.parseObject(request.getMessage(), User.class);
+            UserService service = UserService.getInstance();
+            User byUserNameAndPassword = service.findByUserName(user.getUsername());
+            log.info(byUserNameAndPassword+"");
+            if (byUserNameAndPassword == null && user != null && !"".equals(user.getUsername()) && !"".equals(user.getPassword())) {
+                //如果是等于null.说明还没有这个用户
+                Duty duty =
+                        user.getDuty();
+                if (duty != null) {
+                    String dutyName = duty.getDutyName();
+                    DutyService dutyService = DutyService.getInstance();
+                    Duty dutyByName = dutyService.getDutyByName(dutyName);
+                    if (dutyByName != null && dutyByName.getId() != null) {
+                        user.setDuty(dutyByName);
+                    }
+                }
+                User add = service.add(user);
+                respond.setCode(RespondStatus.REGISTER_SUCCESS.getCode());
+                respond.setMessage(JSON.toJSONString(add));
+            } else {
+                respond.setCode(RespondStatus.REGISTER_FAIL.getCode());
+                respond.setMessage("存在重复的用户,无法注册");
+            }
+        }
+        return respond;
     }
 }

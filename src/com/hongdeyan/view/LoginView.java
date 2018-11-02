@@ -5,14 +5,20 @@
  */
 package com.hongdeyan.view;
 
+import com.alibaba.fastjson.JSON;
+import com.hongdeyan.constant.RequestStatus;
+import com.hongdeyan.constant.RespondStatus;
+import com.hongdeyan.message_model.Request;
+import com.hongdeyan.message_model.Respond;
 import com.hongdeyan.model.User;
-import com.hongdeyan.utils.RequestUtils;
+import com.hongdeyan.server.NioClient;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.HashMap;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 
 /**
  * @author hdy
@@ -45,7 +51,7 @@ public class LoginView extends javax.swing.JFrame {
         int w = (screen.width / 2 - myframe.width);//水平位置
         int h = (screen.height / 2 - myframe.height);//垂直位置
         setLocation(w, h);
-        username = new javax.swing.JTextField();
+        usernameInput = new javax.swing.JTextField();
         usernamePanel = new javax.swing.JLabel();
         password = new javax.swing.JTextField();
         passwordPanel = new javax.swing.JLabel();
@@ -57,7 +63,7 @@ public class LoginView extends javax.swing.JFrame {
         owner = new javax.swing.JLabel();
         title = new javax.swing.JLabel();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setResizable(false);
 
         usernamePanel.setText("用户名:");
@@ -78,16 +84,68 @@ public class LoginView extends javax.swing.JFrame {
         loginButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                if (usernamePanel.getText().isEmpty() || password.getText().isEmpty()) {
+                if (usernameInput.getText().isEmpty() || password.getText().isEmpty()) {
                     JOptionPane.showMessageDialog(null, "请输入完整的数据", "输入错误", JOptionPane.ERROR_MESSAGE);
                 } else {
                     //说明可以尝试进行登陆操作发送
-                    String username = usernamePanel.getText();
+                    String username = usernameInput.getText();
                     String _password = password.getText();
+                    NioClient client = NioClient.getInstance();
+                    User user = new User();
+                    user.setPassword(_password);
+                    user.setUsername(username);
+                    Request request = new Request(RequestStatus.LOGIN.getCode(), JSON.toJSONString(user));
+                    client.send(request, new NioClient.SendBack() {
+                        @Override
+                        public void get(Respond back) {
+                            int code = back.getCode();
+                            if (RespondStatus.LOGIN_SUCCESS.getCode() == code) {
+                                //登录成功
+                                JOptionPane.showMessageDialog(null, "登录成功", "登录成功", JOptionPane.INFORMATION_MESSAGE);
+                                //那么就销毁当前的窗体.进入新的窗体
+                                String message = back.getMessage();
+                            } else {
+                                //登录失败
+                                JOptionPane.showMessageDialog(null, "账户或密码错误", "登录失败", JOptionPane.ERROR_MESSAGE);
+                            }
+                        }
+                    });
                 }
             }
         });
+
         registerButton.setText("注册账户");
+
+        registerButton.addMouseListener(new MouseListener() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                java.awt.EventQueue.invokeLater(new Runnable() {
+                    public void run() {
+                        new RegisterView().setVisible(true);
+                    }
+                });
+            }
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+
+            }
+
+            @Override
+            public void mouseEntered(MouseEvent e) {
+
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+
+            }
+        });
 
         ForgortPassword.setText("忘记密码");
 
@@ -118,7 +176,7 @@ public class LoginView extends javax.swing.JFrame {
                                                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                                                                 .addComponent(autoLogin))
                                                         .addComponent(password)
-                                                        .addComponent(username, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.PREFERRED_SIZE, 229, javax.swing.GroupLayout.PREFERRED_SIZE))
+                                                        .addComponent(usernameInput, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.PREFERRED_SIZE, 229, javax.swing.GroupLayout.PREFERRED_SIZE))
                                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                                                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                                                         .addComponent(registerButton, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
@@ -135,7 +193,7 @@ public class LoginView extends javax.swing.JFrame {
                                 .addComponent(title)
                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 33, Short.MAX_VALUE)
                                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                                        .addComponent(username, javax.swing.GroupLayout.PREFERRED_SIZE, 40, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                        .addComponent(usernameInput, javax.swing.GroupLayout.PREFERRED_SIZE, 40, javax.swing.GroupLayout.PREFERRED_SIZE)
                                         .addComponent(usernamePanel, javax.swing.GroupLayout.PREFERRED_SIZE, 40, javax.swing.GroupLayout.PREFERRED_SIZE)
                                         .addComponent(registerButton, javax.swing.GroupLayout.PREFERRED_SIZE, 40, javax.swing.GroupLayout.PREFERRED_SIZE))
                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
@@ -170,6 +228,6 @@ public class LoginView extends javax.swing.JFrame {
     private javax.swing.JLabel registerButton;
     private javax.swing.JCheckBox savePassword;
     private javax.swing.JLabel title;
-    private javax.swing.JTextField username;
+    private javax.swing.JTextField usernameInput;
     private javax.swing.JLabel usernamePanel;
 }

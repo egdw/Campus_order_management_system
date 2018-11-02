@@ -1,6 +1,7 @@
 package com.hongdeyan.server;
 
 import com.hongdeyan.message_model.Request;
+import com.hongdeyan.message_model.Respond;
 import com.hongdeyan.static_class.RSA;
 import com.hongdeyan.utils.RsaUtil;
 import com.mongodb.util.JSON;
@@ -65,8 +66,10 @@ public class NioClient {
                             try {
                                 Object[] attachment = (Object[]) selectionKey.attachment();
                                 if (attachment != null) {
-                                    String encryptData = RsaUtil.encryptData(((String) attachment[1]), RSA.PUBLICKEY);
-                                    socketChannel.write(ByteBuffer.wrap(encryptData.getBytes()));
+                                    log.info((String)attachment[1]);
+//                                    String encryptData = RsaUtil.encryptData(((String) attachment[1]), RSA.PUBLICKEY);
+                                    //发送之前先进行数据的加密
+                                    socketChannel.write(ByteBuffer.wrap(((String) attachment[1]).getBytes()));
                                     selectionKey.interestOps(SelectionKey.OP_READ);
                                 }
                             } catch (IOException e) {
@@ -107,7 +110,8 @@ public class NioClient {
                             //取消绑定的数据
                             selectionKey.attach(null);
                             selectionKey.interestOps(SelectionKey.OP_WRITE);
-                            sendBack.get(message);
+                            Respond respond = com.alibaba.fastjson.JSON.parseObject(message, Respond.class);
+                            sendBack.get(respond);
 //                            selectionKey.interestOps(0);
                         }
                     }
@@ -204,7 +208,7 @@ public class NioClient {
 
 
     public interface SendBack {
-        public void get(String back);
+        public void get(Respond back);
     }
 
 

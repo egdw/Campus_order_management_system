@@ -22,4 +22,5 @@ public class User {
     //职务
     @DbRef(param_name = "duty")
     private Duty duty;
+
 }

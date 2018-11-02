@@ -6,6 +6,8 @@ import com.hongdeyan.model.Duty;
 import com.hongdeyan.model.Greens;
 import com.hongdeyan.orm.Orm;
 
+import java.util.List;
+
 public class GreensImpl implements GreensDao {
     @Override
     public Greens add(Greens duty) {
@@ -26,5 +28,10 @@ public class GreensImpl implements GreensDao {
     @Override
     public int update(Greens duty) {
         return Orm.update(duty);
+    }
+
+    @Override
+    public List findAll() {
+        return null;
     }
 }
