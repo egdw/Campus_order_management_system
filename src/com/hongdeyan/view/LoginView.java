@@ -12,6 +12,7 @@ import com.hongdeyan.message_model.Request;
 import com.hongdeyan.message_model.Respond;
 import com.hongdeyan.model.User;
 import com.hongdeyan.server.NioClient;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
 import java.awt.*;
@@ -23,6 +24,7 @@ import java.awt.event.MouseListener;
 /**
  * @author hdy
  */
+@Slf4j
 public class LoginView extends javax.swing.JFrame {
 
     public LoginView() {
@@ -104,6 +106,47 @@ public class LoginView extends javax.swing.JFrame {
                                 JOptionPane.showMessageDialog(null, "登录成功", "登录成功", JOptionPane.INFORMATION_MESSAGE);
                                 //那么就销毁当前的窗体.进入新的窗体
                                 String message = back.getMessage();
+                                log.info(message);
+                                User object = JSON.parseObject(message, User.class);
+                                //获取到登陆的详细信息
+                                if ("管理员".equals(object.getDuty().getDutyName())) {
+                                    java.awt.EventQueue.invokeLater(new Runnable() {
+                                        public void run() {
+                                            new Manager().setVisible(true);
+                                        }
+                                    });
+
+                                } else if ("消费者".equals(object.getDuty().getDutyName())) {
+                                    java.awt.EventQueue.invokeLater(new Runnable() {
+                                        public void run() {
+                                            new Client().setVisible(true);
+                                        }
+                                    });
+//                                    java.awt.EventQueue.invokeLater(new Runnable() {
+//                                        public void run() {
+//                                            new Manager().setVisible(true);
+//                                        }
+//                                    });
+                                } else if ("厨师".equals(object.getDuty().getDutyName())) {
+                                    java.awt.EventQueue.invokeLater(new Runnable() {
+                                        public void run() {
+                                            new Manager().setVisible(true);
+                                        }
+                                    });
+                                } else if ("外卖小哥".equals(object.getDuty().getDutyName())) {
+                                    java.awt.EventQueue.invokeLater(new Runnable() {
+                                        public void run() {
+                                            new Manager().setVisible(true);
+                                        }
+                                    });
+                                } else {
+                                    java.awt.EventQueue.invokeLater(new Runnable() {
+                                        public void run() {
+                                            new Manager().setVisible(true);
+                                        }
+                                    });
+                                }
+                                LoginView.this.dispose();
                             } else {
                                 //登录失败
                                 JOptionPane.showMessageDialog(null, "账户或密码错误", "登录失败", JOptionPane.ERROR_MESSAGE);

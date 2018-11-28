@@ -12,6 +12,7 @@ import java.util.logging.Logger;
 
 /**
  * 校园订餐管理系统
+ * 精简部分功能,不想打了
  * 启动类
  *
  * @author hdy

@@ -6,8 +6,12 @@ import com.hongdeyan.constant.RespondStatus;
 import com.hongdeyan.message_model.Request;
 import com.hongdeyan.message_model.Respond;
 import com.hongdeyan.model.Duty;
+import com.hongdeyan.model.Greens;
+import com.hongdeyan.model.Order;
 import com.hongdeyan.model.User;
 import com.hongdeyan.service.DutyService;
+import com.hongdeyan.service.GreensService;
+import com.hongdeyan.service.OrderService;
 import com.hongdeyan.service.UserService;
 import com.hongdeyan.static_class.RSA;
 import com.hongdeyan.utils.RsaUtil;
@@ -23,6 +27,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -185,6 +190,7 @@ public class NioServer {
      */
     private static Respond handler(Request request) {
         Respond respond = new Respond();
+        log.info("当前请求的请求码:"+request.getCode());
         if (RequestStatus.LOGIN.getCode() == request.getCode()) {
             User user = JSON.parseObject(request.getMessage(), User.class);
             log.info(user + "");
@@ -193,7 +199,7 @@ public class NioServer {
             log.info("查询到的用户为:" + byUserNameAndPassword);
             if (byUserNameAndPassword != null) {
                 respond.setCode(RespondStatus.LOGIN_SUCCESS.getCode());
-                respond.setMessage(RespondStatus.LOGIN_SUCCESS.getMessage());
+                respond.setMessage(JSON.toJSONString(byUserNameAndPassword));
             } else {
                 respond.setCode(RespondStatus.LOGIN_FAIL.getCode());
                 respond.setMessage(RespondStatus.LOGIN_FAIL.getMessage());
@@ -204,7 +210,7 @@ public class NioServer {
             User user = JSON.parseObject(request.getMessage(), User.class);
             UserService service = UserService.getInstance();
             User byUserNameAndPassword = service.findByUserName(user.getUsername());
-            log.info(byUserNameAndPassword+"");
+            log.info(byUserNameAndPassword + "");
             if (byUserNameAndPassword == null && user != null && !"".equals(user.getUsername()) && !"".equals(user.getPassword())) {
                 //如果是等于null.说明还没有这个用户
                 Duty duty =
@@ -223,6 +229,63 @@ public class NioServer {
             } else {
                 respond.setCode(RespondStatus.REGISTER_FAIL.getCode());
                 respond.setMessage("存在重复的用户,无法注册");
+            }
+        } else if (RequestStatus.FIND_ALL_USER.getCode() == request.getCode()) {
+            //查找所有的用户
+            UserService service = UserService.getInstance();
+            List<User> all = service.findAll();
+            respond.setCode(RespondStatus.QUERY_SUCESS.getCode());
+            respond.setMessage(JSON.toJSONString(all));
+        } else if (RequestStatus.UPDATE_USER.getCode() == request.getCode()) {
+            //修改用户,这里只能修改用户的密码
+            User user = JSON.parseObject(request.getMessage(), User.class);
+            int update = UserService.getInstance().update(user);
+            if (update>0){
+                respond.setCode(RespondStatus.QUERY_SUCESS.getCode());
+            }
+        } else if (RequestStatus.ADD_GREENS.getCode() == request.getCode()) {
+            //添加菜品
+            GreensService instance = GreensService.getInstance();
+            Greens greens = JSON.parseObject(request.getMessage(), Greens.class);
+
+            log.info("获取到请求,添加菜品:" + greens);
+            greens = instance.add(greens);
+            respond.setCode(RespondStatus.QUERY_SUCESS.getCode());
+            respond.setMessage(JSON.toJSONString(greens));
+        } else if (RequestStatus.ADD_ORDERS.getCode() == request.getCode()) {
+            //添加订单
+            Order order = JSON.parseObject(request.getMessage(), Order.class);
+            //不想打这么复杂了.麻烦死了- -.不校验数据了.又没钱
+            OrderService instance = OrderService.getInstance();
+            order = instance.add(order);
+            respond.setCode(RespondStatus.QUERY_SUCESS.getCode());
+            respond.setMessage(JSON.toJSONString(order));
+        } else if (RequestStatus.REMOVE_GREENS.getCode() == request.getCode()) {
+            //删除菜名
+            String id = request.getMessage();
+            GreensService instance = GreensService.getInstance();
+            int remove = instance.remove(id);
+            respond.setCode(RespondStatus.QUERY_SUCESS.getCode());
+            respond.setMessage(remove + "");
+        }else if(RequestStatus.FIND_ALL_GREENS.getCode() == request.getCode()){
+            //查询所有的菜名
+            log.info("查询所有的菜品");
+            GreensService greensService = GreensService.getInstance();
+            List<Greens> greens = greensService.findAll();
+            respond.setCode(RespondStatus.QUERY_SUCESS.getCode());
+            respond.setMessage(JSON.toJSONString(greens));
+        }else if(RequestStatus.UPDATE_ORDERS.getCode() == request.getCode()){
+            Order order = JSON.parseObject(request.getMessage(), Order.class);
+            Order order1 = OrderService.getInstance().get(order.getId());
+            order1.setSend(order.isSend());
+            order1.setCook(order.isCook());
+            order.setPhone(order.getPhone());
+            order.setBuys(order.getBuys());
+            int update = OrderService.getInstance().update(order1);
+            if(update > 0){
+                respond.setCode(RespondStatus.QUERY_SUCESS.getCode());
+            }else{
+                respond.setCode(RespondStatus.QUERY_FAIL.getCode());
             }
         }
         return respond;

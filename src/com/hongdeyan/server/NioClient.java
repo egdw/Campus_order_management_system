@@ -127,6 +127,7 @@ public class NioClient {
         if (mainThread == null || mainThread.isInterrupted()) {
             run();
         }
+        log.info("当前请求的数据:"+request);
         if (socketChannel == null || socketSelector == null || request == null || sendBack == null) {
             //如果没有,这里先等待一下
             try {

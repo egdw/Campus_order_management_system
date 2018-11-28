@@ -18,6 +18,10 @@ public class Request {
     public Request() {
     }
 
+    public Request(int code) {
+        this.code = code;
+    }
+
     public Request(int code, String message) {
         this.code = code;
         this.message = message;
