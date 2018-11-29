@@ -32,6 +32,6 @@ public class GreensImpl implements GreensDao {
 
     @Override
     public List findAll() {
-        return null;
+        return Orm.selectAll(Greens.class);
     }
 }

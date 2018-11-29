@@ -16,12 +16,14 @@ import com.hongdeyan.model.Order;
 import com.hongdeyan.model.User;
 import com.hongdeyan.server.NioClient;
 import com.hongdeyan.server.NioServer;
+import com.hongdeyan.service.GreensService;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.List;
@@ -30,9 +32,9 @@ import java.util.List;
  * @author hdy
  */
 @Slf4j
-public class Manager extends javax.swing.JFrame {
+public class ManagerView extends javax.swing.JFrame {
 
-    public Manager() {
+    public ManagerView() {
         initComponents();
     }
 
@@ -117,7 +119,7 @@ public class Manager extends javax.swing.JFrame {
                     public void get(Respond back) {
                         if (back.getCode() == RespondStatus.QUERY_SUCESS.getCode()) {
                             log.info("修改成功");
-                        }else{
+                        } else {
                             log.info("修改失败");
                         }
                     }
@@ -146,53 +148,70 @@ public class Manager extends javax.swing.JFrame {
 
         jTabbedPane1.addTab("订单管理", jPanel1);
 
-
-//        NioClient.getInstance().send(new Request(RequestStatus.FIND_ALL_GREENS.getCode()), new NioClient.SendBack() {
-//            @Override
-//            public void get(Respond back) {
-//                log.info("接受到的:"+back);
-//            }
-//        });
-
+        GreensService greensService = GreensService.getInstance();
+        List<Greens> greens = greensService.findAll();
+        Object[][] objs = new Object[greens.size()][4];
+        for (int i = 0; i < greens.size(); i++) {
+            Greens o = (Greens) greens.get(i);
+            objs[i][0] = o.getId();
+            objs[i][1] = o.getName();
+            objs[i][2] = o.getDesc();
+            objs[i][3] = o.getMoney();
+        }
         NioClient.getInstance().send(new Request(RequestStatus.FIND_ALL_GREENS.getCode()), new NioClient.SendBack() {
             @Override
             public void get(Respond back) {
-                log.info("back:" + back);
-                //获取返回的数据
-                String message = back.getMessage();
-                List list = JSON.parseObject(message, List.class);
-
-                Object[][] objs = new Object[list.size()][4];
-                for (int i = 0; i < list.size(); i++) {
-                    Greens o = (Greens) list.get(i);
-                    objs[i][0] = o.getId();
-                    objs[i][1] = o.getName();
-                    objs[i][2] = o.getDesc();
-                    objs[i][3] = o.getMoney();
-                }
-                log.info("获取到的菜品:" + list);
-
-                greensTable.setModel(new javax.swing.table.DefaultTableModel(
-                        objs,
-                        new String[]{
-                                "id", "菜名", "描述", "价格"
-                        }
-                ) {
-                    Class[] types = new Class[]{
-                            java.lang.String.class, java.lang.String.class, java.lang.Double.class
-                    };
-
-                    boolean[] canEdit = new boolean[]{
-                            false, true, true, true
-                    };
-
-                    public Class getColumnClass(int columnIndex) {
-                        return types[columnIndex];
-                    }
-                });
-                jScrollPane2.setViewportView(greensTable);
+                log.info("接受到的:" + back);
             }
         });
+
+
+        DefaultTableModel greensModel = new DefaultTableModel(
+                objs,
+                new String[]{
+                        "id", "菜名", "描述", "价格"
+                }
+        ) {
+            Class[] types = new Class[]{
+                    String.class, String.class, String.class, Double.class
+            };
+
+            boolean[] canEdit = new boolean[]{
+                    false, true, true, true
+            };
+
+            public Class getColumnClass(int columnIndex) {
+                return types[columnIndex];
+            }
+        };
+
+        greensModel.addTableModelListener(new TableModelListener() {
+            @Override
+            public void tableChanged(TableModelEvent e) {
+                //菜品发生变化
+                // 获取所选数据的行数
+                int row = e.getFirstRow();
+                int column = e.getColumn();
+                if (column == 0) {
+                    //id不能被修改
+                    return;
+                }
+                String id = (String) greensModel.getValueAt(row, 0);
+                String name = (String) greensModel.getValueAt(row, 1);
+                String desc = (String) greensModel.getValueAt(row, 2);
+                Double price = (Double) greensModel.getValueAt(row, 3);
+                GreensService greensService = GreensService.getInstance();
+                Greens g = greensService.get(id);
+                if (g != null) {
+                    g.setName(name);
+                    g.setDesc(desc);
+                    g.setMoney(price);
+                    int update = greensService.update(g);
+                }
+            }
+        });
+        greensTable.setModel(greensModel);
+        jScrollPane2.setViewportView(greensTable);
 
 
         addGreensButton.setText("添加");
@@ -216,6 +235,10 @@ public class Manager extends javax.swing.JFrame {
                         Greens parseObject = JSON.parseObject(back.getMessage(), Greens.class);
                         //这里要刷新所有的数据
                         //或者添加到最后
+                        DefaultTableModel tableModel = (DefaultTableModel)
+                                greensTable.getModel();
+                        tableModel.addRow(new Object[]{parseObject.getId(),parseObject.getName(),parseObject.getDesc(),parseObject.getMoney()});
+                        tableModel.fireTableDataChanged();
                     }
                 });
             }
@@ -245,6 +268,10 @@ public class Manager extends javax.swing.JFrame {
                             //删除失败
                             JOptionPane.showMessageDialog(null, "删除失败", "删除失败", JOptionPane.ERROR_MESSAGE);
                         }
+                        DefaultTableModel tableModel = (DefaultTableModel)
+                                greensTable.getModel();
+                        tableModel.removeRow(selectedRow);
+                        tableModel.fireTableDataChanged();
                     }
                 });
             }

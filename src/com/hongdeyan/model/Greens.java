@@ -31,4 +31,7 @@ public class Greens {
     //计算销售的数量
     @Param
     private int saled;
+
+    public Greens() {
+    }
 }

@@ -1,11 +1,18 @@
 package com.hongdeyan.view;
 
+import com.hongdeyan.model.Greens;
+import com.hongdeyan.service.GreensService;
+
+import javax.swing.table.DefaultTableModel;
+import java.util.List;
+import java.util.Vector;
+
 /**
  * @author hdy
  */
-public class Client extends javax.swing.JFrame {
+public class ClientView extends javax.swing.JFrame {
 
-    public Client() {
+    public ClientView() {
         initComponents();
     }
 
@@ -26,18 +33,30 @@ public class Client extends javax.swing.JFrame {
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
-        GreensTable.setModel(new javax.swing.table.DefaultTableModel(
-                new Object[][]{
-                        {null, null, null},
-                        {null, null, null},
-                        {null, null, null}
-                },
+
+        Vector<Object> objects = new Vector<>();
+
+
+        GreensService greensService = GreensService.getInstance();
+        List<Greens> greens = greensService.findAll();
+        Object[][] objs = new Object[greens.size()][4];
+        for (int i = 0; i < greens.size(); i++) {
+            Greens o = (Greens) greens.get(i);
+            objs[i][0] = o.getName();
+            objs[i][1] = o.getDesc();
+            objs[i][2] = o.getMoney();
+        }
+
+
+
+        DefaultTableModel greensModel = new DefaultTableModel(
+                objs,
                 new String[]{
                         "菜名", "描述", "价格"
                 }
         ) {
             Class[] types = new Class[]{
-                    java.lang.String.class, java.lang.String.class, java.lang.Double.class
+                    String.class, String.class, Double.class
             };
             boolean[] canEdit = new boolean[]{
                     false, false, false
@@ -50,7 +69,10 @@ public class Client extends javax.swing.JFrame {
             public boolean isCellEditable(int rowIndex, int columnIndex) {
                 return canEdit[columnIndex];
             }
-        });
+        };
+
+
+        GreensTable.setModel(greensModel);
         jScrollPane2.setViewportView(GreensTable);
 
         addShop.setText("加入购物车");
@@ -83,7 +105,8 @@ public class Client extends javax.swing.JFrame {
 
         jTabbedPane1.addTab("菜品", jPanel1);
 
-        shopTable.setModel(new javax.swing.table.DefaultTableModel(
+
+        DefaultTableModel shoptableModel = new DefaultTableModel(
                 new Object[][]{
                         {null, null, null, null},
                         {null, null, null, null},
@@ -95,7 +118,7 @@ public class Client extends javax.swing.JFrame {
                 }
         ) {
             Class[] types = new Class[]{
-                    java.lang.String.class, java.lang.Double.class, java.lang.Integer.class, java.lang.Double.class
+                    String.class, Double.class, Integer.class, Double.class
             };
             boolean[] canEdit = new boolean[]{
                     false, false, true, false
@@ -108,8 +131,9 @@ public class Client extends javax.swing.JFrame {
             public boolean isCellEditable(int rowIndex, int columnIndex) {
                 return canEdit[columnIndex];
             }
-        });
-        jScrollPane1.setViewportView(shopTable);
+        };
+        this.shopTable.setModel(shoptableModel);
+        jScrollPane1.setViewportView(this.shopTable);
 
         buyButton.setText("下单");
 

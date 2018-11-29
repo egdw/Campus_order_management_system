@@ -112,37 +112,32 @@ public class LoginView extends javax.swing.JFrame {
                                 if ("管理员".equals(object.getDuty().getDutyName())) {
                                     java.awt.EventQueue.invokeLater(new Runnable() {
                                         public void run() {
-                                            new Manager().setVisible(true);
+                                            new ManagerView().setVisible(true);
                                         }
                                     });
 
                                 } else if ("消费者".equals(object.getDuty().getDutyName())) {
                                     java.awt.EventQueue.invokeLater(new Runnable() {
                                         public void run() {
-                                            new Client().setVisible(true);
+                                            new ClientView().setVisible(true);
                                         }
                                     });
-//                                    java.awt.EventQueue.invokeLater(new Runnable() {
-//                                        public void run() {
-//                                            new Manager().setVisible(true);
-//                                        }
-//                                    });
                                 } else if ("厨师".equals(object.getDuty().getDutyName())) {
                                     java.awt.EventQueue.invokeLater(new Runnable() {
                                         public void run() {
-                                            new Manager().setVisible(true);
+                                            new ManagerView().setVisible(true);
                                         }
                                     });
                                 } else if ("外卖小哥".equals(object.getDuty().getDutyName())) {
                                     java.awt.EventQueue.invokeLater(new Runnable() {
                                         public void run() {
-                                            new Manager().setVisible(true);
+                                            new ManagerView().setVisible(true);
                                         }
                                     });
                                 } else {
                                     java.awt.EventQueue.invokeLater(new Runnable() {
                                         public void run() {
-                                            new Manager().setVisible(true);
+                                            new ManagerView().setVisible(true);
                                         }
                                     });
                                 }
