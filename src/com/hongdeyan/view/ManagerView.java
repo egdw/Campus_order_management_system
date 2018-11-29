@@ -17,6 +17,7 @@ import com.hongdeyan.model.User;
 import com.hongdeyan.server.NioClient;
 import com.hongdeyan.server.NioServer;
 import com.hongdeyan.service.GreensService;
+import com.hongdeyan.service.OrderService;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
@@ -59,25 +60,34 @@ public class ManagerView extends javax.swing.JFrame {
         setResizable(false);
 
 
+        OrderService instance = OrderService.getInstance();
+        List<Order> all = instance.findAll();
+
+        Object[][] ordersObjs = new Object[all.size()][8];
+        for (int i = 0; i < all.size(); i++) {
+            Order o = (Order) all.get(i);
+            ordersObjs[i][0] = o.getId();
+            ordersObjs[i][1] = o.getBuyer();
+            ordersObjs[i][2] = o.getAddress();
+            ordersObjs[i][3] = o.getPhone();
+            ordersObjs[i][4] = o.getBuys();
+            ordersObjs[i][5] = o.isCook();
+            ordersObjs[i][6] = o.isSend();
+            ordersObjs[i][7] = o.getSum();
+        }
+
         DefaultTableModel orderTableModel = new DefaultTableModel(
-                new Object[][]{
-                        {null, null, null, null, null, null, null},
-                        {null, null, null, null, null, null, null},
-                        {null, null, null, null, null, null, null},
-                        {null, null, null, null, null, null, null},
-                        {null, null, null, null, null, null, null},
-                        {null, null, null, null, null, null, null}
-                },
+                ordersObjs,
                 new String[]{
-                        "编号", "购买者", "收货地址", "手机", "商品", "烹饪", "派送"
+                        "编号", "购买者", "收货地址", "手机", "商品", "烹饪", "派送","总价"
                 }
         ) {
             Class[] types = new Class[]{
-                    String.class, String.class, String.class, String.class, String.class, Boolean.class, Boolean.class
+                    String.class, String.class, String.class, String.class, String.class, Boolean.class, Boolean.class,Double.class
             };
 
             boolean[] canEdit = new boolean[]{
-                    false, false, true, true, false, false, false
+                    false, false, true, true, false, false, false,false
             };
 
             public Class getColumnClass(int columnIndex) {

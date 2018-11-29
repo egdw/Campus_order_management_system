@@ -190,7 +190,7 @@ public class NioServer {
      */
     private static Respond handler(Request request) {
         Respond respond = new Respond();
-        log.info("当前请求的请求码:"+request.getCode());
+        log.info("当前请求的请求码:" + request.getCode());
         if (RequestStatus.LOGIN.getCode() == request.getCode()) {
             User user = JSON.parseObject(request.getMessage(), User.class);
             log.info(user + "");
@@ -240,7 +240,7 @@ public class NioServer {
             //修改用户,这里只能修改用户的密码
             User user = JSON.parseObject(request.getMessage(), User.class);
             int update = UserService.getInstance().update(user);
-            if (update>0){
+            if (update > 0) {
                 respond.setCode(RespondStatus.QUERY_SUCESS.getCode());
             }
         } else if (RequestStatus.ADD_GREENS.getCode() == request.getCode()) {
@@ -267,14 +267,14 @@ public class NioServer {
             int remove = instance.remove(id);
             respond.setCode(RespondStatus.QUERY_SUCESS.getCode());
             respond.setMessage(remove + "");
-        }else if(RequestStatus.FIND_ALL_GREENS.getCode() == request.getCode()){
+        } else if (RequestStatus.FIND_ALL_GREENS.getCode() == request.getCode()) {
             //查询所有的菜名
             log.info("查询所有的菜品");
             GreensService greensService = GreensService.getInstance();
             List<Greens> greens = greensService.findAll();
             respond.setCode(RespondStatus.QUERY_SUCESS.getCode());
             respond.setMessage(JSON.toJSONString(greens));
-        }else if(RequestStatus.UPDATE_ORDERS.getCode() == request.getCode()){
+        } else if (RequestStatus.UPDATE_ORDERS.getCode() == request.getCode()) {
             Order order = JSON.parseObject(request.getMessage(), Order.class);
             Order order1 = OrderService.getInstance().get(order.getId());
             order1.setSend(order.isSend());
@@ -282,11 +282,17 @@ public class NioServer {
             order.setPhone(order.getPhone());
             order.setBuys(order.getBuys());
             int update = OrderService.getInstance().update(order1);
-            if(update > 0){
+            if (update > 0) {
                 respond.setCode(RespondStatus.QUERY_SUCESS.getCode());
-            }else{
+            } else {
                 respond.setCode(RespondStatus.QUERY_FAIL.getCode());
             }
+        } else if (RequestStatus.ADD_ORDERS.getCode() == request.getCode()) {
+            Order order = JSON.parseObject(request.getMessage(), Order.class);
+            OrderService instance = OrderService.getInstance();
+            order = instance.add(order);
+            respond.setCode(RespondStatus.QUERY_SUCESS.getCode());
+            respond.setMessage(JSON.toJSONString(order));
         }
         return respond;
     }

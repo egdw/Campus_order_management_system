@@ -1,9 +1,20 @@
 package com.hongdeyan.view;
 
+import com.alibaba.fastjson.JSON;
+import com.hongdeyan.constant.Keys;
+import com.hongdeyan.constant.RequestStatus;
+import com.hongdeyan.constant.RespondStatus;
+import com.hongdeyan.message_model.Request;
+import com.hongdeyan.message_model.Respond;
 import com.hongdeyan.model.Greens;
+import com.hongdeyan.model.Order;
+import com.hongdeyan.server.NioClient;
 import com.hongdeyan.service.GreensService;
 
+import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.util.List;
 import java.util.Vector;
 
@@ -34,9 +45,6 @@ public class ClientView extends javax.swing.JFrame {
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
 
-        Vector<Object> objects = new Vector<>();
-
-
         GreensService greensService = GreensService.getInstance();
         List<Greens> greens = greensService.findAll();
         Object[][] objs = new Object[greens.size()][4];
@@ -46,7 +54,6 @@ public class ClientView extends javax.swing.JFrame {
             objs[i][1] = o.getDesc();
             objs[i][2] = o.getMoney();
         }
-
 
 
         DefaultTableModel greensModel = new DefaultTableModel(
@@ -76,11 +83,7 @@ public class ClientView extends javax.swing.JFrame {
         jScrollPane2.setViewportView(GreensTable);
 
         addShop.setText("加入购物车");
-        addShop.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                addShopActionPerformed(evt);
-            }
-        });
+
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
@@ -107,12 +110,7 @@ public class ClientView extends javax.swing.JFrame {
 
 
         DefaultTableModel shoptableModel = new DefaultTableModel(
-                new Object[][]{
-                        {null, null, null, null},
-                        {null, null, null, null},
-                        {null, null, null, null},
-                        {null, null, null, null}
-                },
+                new Object[][]{},
                 new String[]{
                         "菜名", "单价", "数量", "总价"
                 }
@@ -132,12 +130,113 @@ public class ClientView extends javax.swing.JFrame {
                 return canEdit[columnIndex];
             }
         };
+
+        addShop.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                //获取当前选中的
+                int selectedRow = GreensTable.getSelectedRow();
+                String name = (String) GreensTable.getValueAt(selectedRow, 0);
+                String desc = (String) GreensTable.getValueAt(selectedRow, 1);
+                Double price = (Double) GreensTable.getValueAt(selectedRow, 2);
+                if (selectedRow != -1) {
+                    Vector vector = shoptableModel.getDataVector();
+                    System.out.println(vector);
+                    boolean flag = true;
+                    for (int i = 0; i < vector.size(); i++) {
+                        Vector v = (Vector) vector.get(i);
+                        if (v.get(0).equals(name)) {
+                            //说明已经添加了.那么
+                            int size = (int) v.get(2);
+                            flag = false;
+                            shoptableModel.setValueAt((size + 1), i, 2);
+                            shoptableModel.setValueAt((size + 1) * price, i, 3);
+                            break;
+                        }
+                    }
+                    if (flag) {
+                        shoptableModel.addRow(new Object[]{name, price, 1, (price)});
+                    }
+                    shoptableModel.fireTableDataChanged();
+                } else {
+                    //说明什么都没有选中..
+                }
+
+            }
+        });
+
+
         this.shopTable.setModel(shoptableModel);
         jScrollPane1.setViewportView(this.shopTable);
 
         buyButton.setText("下单");
 
+        buyButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+
+                String human = (String) JOptionPane.showInputDialog(null, "请输入收货人：\n", "收货人", JOptionPane.PLAIN_MESSAGE, null, null, "收货人");
+                String phone = (String) JOptionPane.showInputDialog(null, "请输入手机号：\n", "手机号", JOptionPane.PLAIN_MESSAGE, null, null, "手机号");
+                String address = (String) JOptionPane.showInputDialog(null, "请输入收货地址：\n", "收货地址", JOptionPane.PLAIN_MESSAGE, null, null, "收货地址");
+
+
+                //下单操作.获取所有的数据.提交到服务器
+                Vector vector = shoptableModel.getDataVector();
+
+                if (vector.size() == 0) {
+                    return;
+                }
+
+                double sum = 0;
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < vector.size(); i++) {
+                    Vector v = (Vector) vector.get(i);
+                    sb.append(v.get(0)).append("*").append(v.get(2)).append(",");
+                    Double price = (Double) v.get(3);
+                    sum += price;
+                }
+
+
+                NioClient client = NioClient.getInstance();
+                Request request = new Request();
+                request.setCode(RequestStatus.ADD_ORDERS.getCode());
+                Order order = new Order();
+                order.setBuys(sb.toString());
+                order.setBuyer(human);
+                order.setPhone(phone);
+                order.setAddress(address);
+                order.setSum(sum);
+                request.setMessage(JSON.toJSONString(order));
+                client.send(request, new NioClient.SendBack() {
+                    @Override
+                    public void get(Respond back) {
+                        int code = back.getCode();
+                        if (code == RespondStatus.QUERY_SUCESS.getCode()){
+                            JOptionPane.showMessageDialog(null, "下单成功", "成功", JOptionPane.PLAIN_MESSAGE);
+                        }else{
+                            JOptionPane.showMessageDialog(null, "下单失败", "失败", JOptionPane.ERROR_MESSAGE);
+                            int rowCount = shoptableModel.getRowCount();
+                            for(int i = 0;i<rowCount;i++){
+                                shoptableModel.removeRow(i);
+                            }
+                            shoptableModel.fireTableDataChanged();
+                        }
+                    }
+                });
+            }
+        });
+
+
         jButton2.setText("删除");
+
+        jButton2.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int selectedRow = shopTable.getSelectedRow();
+                shoptableModel.removeRow(selectedRow);
+                shoptableModel.fireTableDataChanged();
+            }
+        });
+
 
         javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
         jPanel2.setLayout(jPanel2Layout);
@@ -193,11 +292,6 @@ public class ClientView extends javax.swing.JFrame {
         pack();
     }
 
-    //点击加入购物车
-    private void addShopActionPerformed(java.awt.event.ActionEvent evt) {
-
-
-    }
 
     // Variables declaration - do not modify
     private javax.swing.JTable GreensTable;

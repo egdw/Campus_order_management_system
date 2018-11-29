@@ -6,6 +6,7 @@
 package com.hongdeyan.view;
 
 import com.alibaba.fastjson.JSON;
+import com.hongdeyan.constant.Keys;
 import com.hongdeyan.constant.RequestStatus;
 import com.hongdeyan.constant.RespondStatus;
 import com.hongdeyan.message_model.Request;
@@ -106,6 +107,8 @@ public class LoginView extends javax.swing.JFrame {
                                 JOptionPane.showMessageDialog(null, "登录成功", "登录成功", JOptionPane.INFORMATION_MESSAGE);
                                 //那么就销毁当前的窗体.进入新的窗体
                                 String message = back.getMessage();
+                                Keys.currentName = username;
+                                Keys.currentPassword = _password;
                                 log.info(message);
                                 User object = JSON.parseObject(message, User.class);
                                 //获取到登陆的详细信息
